@@ -1,0 +1,75 @@
+# Gera o instalador do Windows e publica na página de Releases.
+#
+# - Ao enviar uma tag "v*" (ex.: git tag v1.2.0 && git push origin v1.2.0),
+#   compila o instalador e cria a Release com o .exe e o checksum SHA-256.
+# - "Run workflow" (manual) só compila e deixa o instalador como artefato do
+#   job, sem publicar Release; útil para testar o build.
+name: Build e Release do instalador
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Definir versão
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          } else {
+            $version = "0.0.$env:GITHUB_RUN_NUMBER"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Versão: $version"
+
+      - name: Compilar instalador
+        shell: pwsh
+        run: .\build-installer.ps1 -Python python -Version "${{ steps.version.outputs.version }}"
+
+      - name: Guardar instalador como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: FECArcade-Setup-${{ steps.version.outputs.version }}
+          path: dist/installer/*
+
+      - name: Publicar Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Bimbird Arcade ${{ github.ref_name }}
+          files: |
+            dist/installer/FECArcade-Setup-${{ steps.version.outputs.version }}.exe
+            dist/installer/FECArcade-Setup-${{ steps.version.outputs.version }}.exe.sha256
+          body: |
+            ## Como instalar
+
+            1. Baixe **FECArcade-Setup-${{ steps.version.outputs.version }}.exe** abaixo.
+            2. Execute o instalador (não precisa de administrador).
+            3. Se o Windows mostrar "O Windows protegeu o computador", clique em
+               **Mais informações → Executar assim mesmo** (o instalador não é assinado digitalmente).
+
+            Requisitos: Windows 10/11 64 bits e uma webcam.
+            A instalação é limpa: o ranking começa vazio e os dados ficam só neste computador.

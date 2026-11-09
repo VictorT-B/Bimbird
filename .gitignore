@@ -1,0 +1,13 @@
+# Dados dos jogadores: são locais de cada computador e não devem ser
+# versionados nem distribuídos (use --export-db / --import-db para transferir)
+*.db
+*.db.bak-*
+*highscore.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# Saídas de build (geradas por build-installer.ps1)
+dist/
+build/pyinstaller/
